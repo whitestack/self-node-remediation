@@ -26,6 +26,9 @@ KUSTOMIZE_VERSION = v5.3.0
 # https://pkg.go.dev/sigs.k8s.io/controller-runtime/tools/setup-envtest/env?tab=versions
 ENVTEST_VERSION = v0.0.0-20240215124517-56159419231e
 
+# https://pkg.go.dev/github.com/arttor/helmify?tab=versions
+HELMIFY_VERSION = v0.4.18
+
 # versions at https://github.com/slintes/sort-imports/tags
 SORT_IMPORTS_VERSION = v0.3.0
 
@@ -67,7 +70,7 @@ ifneq ($(origin CHANNELS), undefined)
 BUNDLE_CHANNELS := --channels=$(CHANNELS)
 endif
 
-# DEFAULT_CHANNEL defines the default channel used in the bundle. 
+# DEFAULT_CHANNEL defines the default channel used in the bundle.
 # Add a new line here if you would like to change its default config. (E.g DEFAULT_CHANNEL = "stable")
 # To re-generate a bundle for any other default channel without changing the default setup, you can:
 # - use the DEFAULT_CHANNEL as arg of the bundle target (e.g make bundle DEFAULT_CHANNEL=stable)
@@ -215,6 +218,9 @@ set-labels-to-namespace: ## Set labels on NS as workaround for OLM pod not runni
 	oc label --overwrite ns $(OPERATOR_NAMESPACE) security.openshift.io/scc.podSecurityLabelSync=false
 	oc label --overwrite ns $(OPERATOR_NAMESPACE) pod-security.kubernetes.io/enforce=privileged
 
+.PHONY: helm
+helm: manifests kustomize helmify ## Run helmify to update chart
+	$(KUSTOMIZE) build config/default | $(HELMIFY)
 
 ##@ Build
 
@@ -292,6 +298,10 @@ ifeq (,$(wildcard $(KUSTOMIZE)))
 	$(call go-install-tool,$(KUSTOMIZE),sigs.k8s.io/kustomize/kustomize/$(KUSTOMIZE_API_VERSION)@${KUSTOMIZE_VERSION}) ;\
 	}
 endif
+
+HELMIFY = $(shell pwd)/bin/helmify
+helmify: ## Download helmify locally if necessary.
+	$(call go-install-tool,$(HELMIFY),github.com/arttor/helmify/cmd/helmify@$(HELMIFY_VERSION))
 
 .PHONY: envtest
 envtest: ## Download envtest-setup locally if necessary.
@@ -389,7 +399,7 @@ verify-previous-version: ## Verifies that PREVIOUS_VERSION variable is set
 .PHONY: bundle-validate
 bundle-validate: operator-sdk ## Validate the bundle directory with additional validators (suite=operatorframework), such as Kubernetes deprecated APIs (https://kubernetes.io/docs/reference/using-api/deprecation-guide/) based on bundle.CSV.Spec.MinKubeVersion
 	$(OPERATOR_SDK) bundle validate ./bundle --select-optional suite=operatorframework
-	
+
 .PHONY: bundle-build
 bundle-build: bundle bundle-update ## Build the bundle image.
 	docker build -f bundle.Dockerfile -t $(BUNDLE_IMG) .

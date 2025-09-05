@@ -1,0 +1,23 @@
+name: Helm package and push
+on:
+  push:
+    tags:
+    - "*-whitestack"
+jobs:
+  push-chart:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    - name: Get version name without v and without the `whitestack` suffix
+      run: echo "ERSION=$(echo ${{ github.ref_name }} | sed -e 's/^v//' | sed -e 's/-.*$//')" >> $GITHUB_ENV
+    - name: Push chart
+      uses: appany/helm-oci-chart-releaser@v0.5.0
+      with:
+        name: self-node-remediation
+        repository: whitestack/charts
+        tag: ${{ env.ERSION }}
+        path: chart/
+        registry: ghcr.io
+        registry_username: ${{ github.repository_owner }}
+        registry_password: ${{ secrets.GITHUB_TOKEN }}

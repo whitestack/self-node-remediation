@@ -1,0 +1,6 @@
+apiVersion: v2
+name: self-node-remediation
+description: Operator that remediates a failing node when it fails
+type: application
+version: 0.10.2
+appVersion: "0.10.2"
