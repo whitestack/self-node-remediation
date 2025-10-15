@@ -50,7 +50,7 @@ OPERATOR_NAMESPACE ?= openshift-workload-availability
 # To re-generate a bundle for another specific version without changing the standard setup, you can:
 # - use the VERSION as arg of the bundle target (e.g make bundle VERSION=0.0.2)
 # - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
-DEFAULT_VERSION := 0.0.1
+DEFAULT_VERSION := 0.10.0
 CI_VERSION := 9.9.9-ci
 VERSION ?= $(DEFAULT_VERSION)
 PREVIOUS_VERSION ?= $(DEFAULT_VERSION)
@@ -219,8 +219,15 @@ set-labels-to-namespace: ## Set labels on NS as workaround for OLM pod not runni
 	oc label --overwrite ns $(OPERATOR_NAMESPACE) pod-security.kubernetes.io/enforce=privileged
 
 .PHONY: helm
-helm: manifests kustomize helmify ## Run helmify to update chart
-	$(KUSTOMIZE) build config/default | $(HELMIFY)
+helm: manifests kustomize helmify envsubst yq ## Run helmify to update chart
+	$(KUSTOMIZE) build config/default | $(ENVSUBST) | $(HELMIFY)
+	# Update chart version and appVersion
+	$(YQ) -i '.version = "$(VERSION)"' chart/Chart.yaml
+	$(YQ) -i '.appVersion = "$(VERSION)"' chart/Chart.yaml
+	# Update image tag in values.yaml
+	$(YQ) -i '.controllerManager.manager.image.tag = "$(IMAGE_TAG)"' chart/values.yaml
+	# Update SELF_NODE_REMEDIATION_IMAGE environment variable with full image reference
+	$(YQ) -i '.controllerManager.manager.env.selfNodeRemediationImage = "$(IMG)"' chart/values.yaml
 
 ##@ Build
 
@@ -519,7 +526,7 @@ verify-bundle: manifests bundle bundle-reset verify-no-changes ##Verifies bundle
 # Revert all version or build date related changes
 .PHONY: bundle-reset
 bundle-reset:
-	VERSION=0.0.1 $(MAKE) manifests bundle
+	VERSION=0.10.0 $(MAKE) manifests bundle
 	# empty creation date
 	sed -r -i "s|createdAt: .*|createdAt: \"\"|;" ${CSV}
 
